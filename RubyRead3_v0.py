@@ -3,7 +3,7 @@ __author__ = 'jssmith'
 '''
 A GUI for measuring ruby pressure with Ocean Optics or Ocean Insight spectrometers
 
-build command line for executable --unknown--
+build command line for executable --unknown-- maybe straightforwrd
 '''
 
 # import necessary modules
