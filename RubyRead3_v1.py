@@ -24,6 +24,9 @@ import os
 
 
 class MainWindow(qtw.QMainWindow):
+
+    spectra_requested_signal = qtc.pyqtSignal(bool)
+
     def __init__(self):
         super().__init__()
         self.setGeometry(100, 100, 1080, 720)
@@ -686,9 +689,20 @@ class MainWindow(qtw.QMainWindow):
         # self.setStyleSheet(stylesheet)
         # file.close()
 
+        '''
+        Thread stuff
+        '''
+
+        # # test new initialize collection thread
+        self.collect = CollectSpecs()
+        self.collect_thread = qtc.QThread()
+        self.collect.moveToThread(self.collect_thread)
+        self.collect_thread.start()
+        self.collect.spectra_returned_signal.connect(self.data_set)
+        self.spectra_requested_signal.connect(self.collect.collect)
         # initialize collection thread
-        self.collect_thread = CollectThread(self)
-        self.collect_thread.collect_thread_callback_signal.connect(self.data_set)
+        # ###self.collect_thread = CollectThread(self)
+        # ###self.collect_thread.collect_thread_callback_signal.connect(self.data_set)
         # initialize fit thread
         self.fit_thread = FitThread(self)
         self.fit_thread.fit_thread_callback_signal.connect(self.fit_set)
@@ -703,7 +717,7 @@ class MainWindow(qtw.QMainWindow):
     '''
 
     def load_data(self):
-        if self.collect_thread.go:
+        if self.collect.go:
             qtw.QMessageBox.warning(self, 'Unable to load data', 'You must stop continuous data collection before attempting to load data')
             return
         name, _ = qtw.QFileDialog.getOpenFileName(self, 'Open file', filter='*.csv, *.txt')
@@ -723,17 +737,29 @@ class MainWindow(qtw.QMainWindow):
         self.dialog_window = exportDialog.ExportDialog(scene)
         self.dialog_window.show(self.raw_data)
 
+    # ###def closeEvent(self, *args, **kwargs):
+    # ###    if self.collect_thread.go:
+    # ###        self.collect_thread.stop()
+    # ###    while self.collect_thread.isRunning():
+    # ###        time.sleep(0.01)
+    # ###    app.closeAllWindows()
+    # ###    sys.exit()
+
     def closeEvent(self, *args, **kwargs):
-        if self.collect_thread.go:
-            self.collect_thread.stop()
+        if self.collect.go:
+            print('thread is busy')
+            self.collect.go = False
+        self.collect_thread.quit()
         while self.collect_thread.isRunning():
             time.sleep(0.01)
+            print('still running!?')
+        print('thread is feeling fresh')
         app.closeAllWindows()
         sys.exit()
 
     # class methods for custom tool bar
     def take_one_spectrum(self):
-        if not self.collect_thread.go:
+        if not self.collect.go:
             intensities = core.spec.intensities()
             if self.average_spec_cbox.isChecked():
                 num = self.average_spec_sbox.value()
@@ -743,11 +769,17 @@ class MainWindow(qtw.QMainWindow):
             core.ys = intensities
             update()
 
+    # ###def take_n_spectra(self):
+    # ###    if not self.collect_thread.go:
+    # ###        self.collect_thread.start()
+    # ###    else:
+    # ###        self.collect_thread.stop()
+
     def take_n_spectra(self):
-        if not self.collect_thread.go:
-            self.collect_thread.start()
+        if not self.collect.go:
+            self.spectra_requested_signal.emit(True)
         else:
-            self.collect_thread.stop()
+            self.collect.stop()
 
     def fit_one_spectrum(self):
         if not self.fit_n_spec_btn.isChecked():
@@ -1140,6 +1172,43 @@ class CustomViewBox(pg.ViewBox):
         self.setYRange(core.ys_roi.min(), core.ys_roi.max())
 
 
+class CollectSpecs(qtc.QObject):
+
+    spectra_returned_signal = qtc.pyqtSignal(dict)
+
+    def __init__(self):
+        super().__init__()
+        self.go = False
+
+    def collect(self, emit_sig):
+        self.go = emit_sig
+        data_dict = {'remaining_time': '', 'raw_y': ''}
+        start_time = time.perf_counter()
+        while self.go:
+            # get the spectrum
+            intensities = core.spec.intensities()
+            # average if needed
+            if core.average:
+                num = core.num_average
+                for each in range(num - 1):
+                    intensities += core.spec.intensities()
+                intensities = intensities / num
+            # determine remaining time to collect spectra
+            remaining_time = core.duration - (time.perf_counter() - start_time)
+            # update dictionary values and send the dict signal
+            data_dict['remaining_time'] = remaining_time
+            data_dict['raw_y'] = intensities
+            self.spectra_returned_signal.emit(data_dict)
+            # check if it's time to stop
+            if not remaining_time > 0:
+                self.stop()
+        data_dict['remaining_time'] = 0
+        self.spectra_returned_signal.emit(data_dict)
+
+    def stop(self):
+        self.go = False
+
+
 class CollectThread(qtc.QThread):
     collect_thread_callback_signal = qtc.pyqtSignal(dict)
 
@@ -1152,7 +1221,7 @@ class CollectThread(qtc.QThread):
         self.go = False
 
     def run(self):
-        self.go = True
+        # self.go = True
         data_dict = {'remaining_time': '', 'raw_y': ''}
         start_time = time.perf_counter()
         while self.go:
@@ -1173,7 +1242,6 @@ class CollectThread(qtc.QThread):
             # check if it's time to stop
             if not remaining_time > 0:
                 self.stop()
-            print(self.isRunning())
         data_dict['remaining_time'] = 0
         self.collect_thread_callback_signal.emit(data_dict)
 
