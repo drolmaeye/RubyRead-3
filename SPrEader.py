@@ -431,10 +431,10 @@ Header._fields_ = [
     ('AvGain', spe_short),
     ('lastvalue', spe_short)]
 
-test = SpeFile('Bi-cell4-ruby7.SPE')
-print(test)
-print(test.header.ExperimentTimeUTC)
-
-print(test.data.shape)
-print(test.data[0].shape)
-print(print(test.header))
+# ###test = SpeFile('Bi-cell4-ruby7.SPE')
+# ###print(test)
+# ###print(test.header.ExperimentTimeUTC)
+# ###
+# ###print(test.data.shape)
+# ###print(test.data[0].shape)
+# ###print(print(test.header))
