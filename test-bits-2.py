@@ -60,7 +60,7 @@ curve_roi_duration = time.perf_counter() - curve_roi_start
 print('curve and roi:', curve_roi_duration)
 
 pwidget = pg.plot()
-pwidget.plot(y=pressures)
+pwidget.plot(pressures)
 pg.QtGui.QApplication.exec_()
 
 

@@ -3,7 +3,9 @@ __author__ = 'jssmith'
 '''
 A GUI for measuring ruby pressure with Ocean Optics or Ocean Insight spectrometers
 
-build command line for executable --unknown-- maybe straightforwrd
+build command line for executable thus far built with hidden imports (not single file):
+hiddenimports=['six', 'scipy.spatial.transform._rotation_groups'],
+as copied from the .spec file
 '''
 
 # import necessary modules
@@ -22,10 +24,10 @@ import time
 import os
 
 
-
 class MainWindow(qtw.QMainWindow):
 
     spectra_requested_signal = qtc.pyqtSignal(bool)
+    fit_requested_signal = qtc.pyqtSignal(bool)
 
     def __init__(self):
         super().__init__()
@@ -127,12 +129,17 @@ class MainWindow(qtw.QMainWindow):
         self.threshold_min_input.setSingleStep(100)
         self.threshold_min_input.setMinimumWidth(70)
 
+        self.test_9000_btn = qtw.QPushButton('Zoom Full')
+        self.test_9999_btn = qtw.QPushButton('Zoom Fit')
+
         # connect custom toolbar signals
         self.take_one_spec_btn.clicked.connect(self.take_one_spectrum)
         self.take_n_spec_btn.clicked.connect(self.take_n_spectra)
         self.fit_one_spec_btn.clicked.connect(self.fit_one_spectrum)
         self.fit_n_spec_btn.clicked.connect(self.fit_n_spectra)
         self.threshold_min_input.valueChanged.connect(self.set_threshold)
+        self.test_9000_btn.clicked.connect(self.test_9000)
+        self.test_9999_btn.clicked.connect(self.test_9999)
 
         # add custom toolbar widgets to toolbar layout
         self.tb_layout.addWidget(self.take_spec_label)
@@ -150,6 +157,9 @@ class MainWindow(qtw.QMainWindow):
         self.tb_layout.addWidget(self.threshold_label)
         self.tb_layout.addWidget(self.threshold_min_input)
         self.tb_layout.addSpacing(20)
+
+        self.tb_layout.addWidget(self.test_9000_btn)
+        self.tb_layout.addWidget(self.test_9999_btn)
 
         # add custom toolbar to main window
         self.mw_layout.addWidget(self.tb)
@@ -444,7 +454,7 @@ class MainWindow(qtw.QMainWindow):
 
         # create pressure control widgets
         self.press_calibration_label = qtw.QLabel('Calibration')
-        self.press_calibration_display = qtw.QLabel('Dorogokupets and Oganov (2007)')
+        self.press_calibration_display = qtw.QLabel('IPPS-Ruby2020 (2020)')
         self.lambda_naught_295_label = qtw.QLabel(u'\u03BB' + '<sub>0</sub>' + '(295)' + ' (nm)')
         self.lambda_naught_295_display = qtw.QLabel('694.260')
         self.lambda_naught_t_label = qtw.QLabel(u'\u03BB' + '<sub>0</sub>' + '(T)' + ' (nm)')
@@ -530,15 +540,15 @@ class MainWindow(qtw.QMainWindow):
 
         # make widgets for calibration selection
         self.choose_calibration_drop = qtw.QComboBox()
-        self.choose_calibration_drop.addItems(['Dorogokupets and Oganov, PRB 75, 024115 (2007)',
+        self.choose_calibration_drop.addItems(['IPPS-Ruby2020, Shen et al., HPR 40, 299-314 (2020)',
                                                'Mao et al., JGR 91, 4673 (1986)',
                                                'Dewaele et al., PRB 69, 092106 (2004)'])
         self.p_calibration_alpha_label = qtw.QLabel('<i>A</i> =')
         self.p_calibration_alpha_label.setAlignment(qtc.Qt.AlignRight)
-        self.p_calibration_alpha_display = qtw.QLabel('1885')
+        self.p_calibration_alpha_display = qtw.QLabel('1870')
         self.p_calibration_beta_label = qtw.QLabel('<i>B</i> =')
         self.p_calibration_beta_label.setAlignment(qtc.Qt.AlignRight)
-        self.p_calibration_beta_display = qtw.QLabel('11.0')
+        self.p_calibration_beta_display = qtw.QLabel('10.69')
         # ###self.calculation_label = QtGui.QLabel('P = ' + u'\u03B1' + '/' + u'\u03B2' + '[(' + u'\u03BB' + '/' + u'\u03BB' + '<sub>0</sub>)<sup>' + u'\u03B2' + '</sup> - 1]')
         self.calculation_label = qtw.QLabel('<i>P</i> = <i>A/B</i> [(' + u'\u03BB' + '/' + u'\u03BB' + '<sub>0</sub>)<sup><i>B</i></sup> - 1]')
         self.calculation_label.setStyleSheet('font-size: 16pt; font-weight: bold')
@@ -621,7 +631,7 @@ class MainWindow(qtw.QMainWindow):
         self.pixel_select_layout.addWidget(self.fit_roi_max_sbox)
         self.fitting_roi_tab_layout.addLayout(self.pixel_select_layout)
 
-        self.ow.addTab(self.fitting_roi_tab, 'Fitting ROI')
+        self.ow.addTab(self.fitting_roi_tab, 'Fitting')
 
         # ###EPICS tab###
         # make EPICS tab
@@ -693,19 +703,21 @@ class MainWindow(qtw.QMainWindow):
         Thread stuff
         '''
 
-        # # test new initialize collection thread
+        # initialize collection thread
         self.collect = CollectSpecs()
         self.collect_thread = qtc.QThread()
         self.collect.moveToThread(self.collect_thread)
         self.collect_thread.start()
         self.collect.spectra_returned_signal.connect(self.data_set)
-        self.spectra_requested_signal.connect(self.collect.collect)
-        # initialize collection thread
-        # ###self.collect_thread = CollectThread(self)
-        # ###self.collect_thread.collect_thread_callback_signal.connect(self.data_set)
+        self.spectra_requested_signal.connect(self.collect.collect_specs)
+
         # initialize fit thread
-        self.fit_thread = FitThread(self)
-        self.fit_thread.fit_thread_callback_signal.connect(self.fit_set)
+        self.fit = FitSpecs()
+        self.fit_thread = qtc.QThread()
+        self.fit.moveToThread(self.fit_thread)
+        self.fit_thread.start()
+        self.fit.fit_returned_signal.connect(self.fit_set)
+        self.fit_requested_signal.connect(self.fit.fit_specs)
 
         self.temperature_pv = []
 
@@ -737,23 +749,13 @@ class MainWindow(qtw.QMainWindow):
         self.dialog_window = exportDialog.ExportDialog(scene)
         self.dialog_window.show(self.raw_data)
 
-    # ###def closeEvent(self, *args, **kwargs):
-    # ###    if self.collect_thread.go:
-    # ###        self.collect_thread.stop()
-    # ###    while self.collect_thread.isRunning():
-    # ###        time.sleep(0.01)
-    # ###    app.closeAllWindows()
-    # ###    sys.exit()
-
     def closeEvent(self, *args, **kwargs):
+        self.fit_thread.quit()
+        self.fit_thread.wait()
         if self.collect.go:
-            print('thread is busy')
             self.collect.go = False
         self.collect_thread.quit()
-        while self.collect_thread.isRunning():
-            time.sleep(0.01)
-            print('still running!?')
-        print('thread is feeling fresh')
+        self.collect_thread.wait()
         app.closeAllWindows()
         sys.exit()
 
@@ -769,12 +771,6 @@ class MainWindow(qtw.QMainWindow):
             core.ys = intensities
             update()
 
-    # ###def take_n_spectra(self):
-    # ###    if not self.collect_thread.go:
-    # ###        self.collect_thread.start()
-    # ###    else:
-    # ###        self.collect_thread.stop()
-
     def take_n_spectra(self):
         if not self.collect.go:
             self.spectra_requested_signal.emit(True)
@@ -783,7 +779,7 @@ class MainWindow(qtw.QMainWindow):
 
     def fit_one_spectrum(self):
         if not self.fit_n_spec_btn.isChecked():
-            self.fit_thread.start()
+            self.fit_requested_signal.emit(True)
 
     def fit_n_spectra(self):
         if self.fit_n_spec_btn.isChecked():
@@ -799,6 +795,12 @@ class MainWindow(qtw.QMainWindow):
 
     def set_threshold(self):
         core.threshold = self.threshold_min_input.value()
+
+    def test_9000(self):
+        vb.autoRange()
+
+    def test_9999(self):
+        vb.zoom_roi()
 
     # class methods for spectrum control
     def update_count_time(self):
@@ -969,9 +971,9 @@ class MainWindow(qtw.QMainWindow):
     def set_new_p_calibration(self):
         index = self.choose_calibration_drop.currentIndex()
         if index == 0:
-            calibration = 'Dorogokupets and Oganov (2007)'
-            a = 1885
-            b = 11.0
+            calibration = 'IPPS-Ruby2020 (2020)'
+            a = 1870
+            b = 10.69
         elif index == 1:
             calibration = 'Mao et al. (1986)'
             a = 1904
@@ -1137,8 +1139,8 @@ class CoreData:
 
         # pressure calculation parameters
         # lambda zero (ref) is 694.260 based on Ragan et al JAP 72, 5539 (1992) at 295K
-        self.alpha = 1885
-        self.beta = 11.0
+        self.alpha = 1870
+        self.beta = 10.69
         self.lambda_0_ref = 694.260
         self.lambda_0_user = 694.260
         self.lambda_0_t_user = 694.260
@@ -1180,7 +1182,7 @@ class CollectSpecs(qtc.QObject):
         super().__init__()
         self.go = False
 
-    def collect(self, emit_sig):
+    def collect_specs(self, emit_sig):
         self.go = emit_sig
         data_dict = {'remaining_time': '', 'raw_y': ''}
         start_time = time.perf_counter()
@@ -1209,53 +1211,14 @@ class CollectSpecs(qtc.QObject):
         self.go = False
 
 
-class CollectThread(qtc.QThread):
-    collect_thread_callback_signal = qtc.pyqtSignal(dict)
+class FitSpecs(qtc.QObject):
 
-    # ###def __init__(self, parent):
-    # ###    super(CollectThread, self).__init__(parent)
-    # ###    self.go = False
+    fit_returned_signal = qtc.pyqtSignal(dict)
 
-    def __init__(self, parent):
+    def __init__(self):
         super().__init__()
-        self.go = False
 
-    def run(self):
-        # self.go = True
-        data_dict = {'remaining_time': '', 'raw_y': ''}
-        start_time = time.perf_counter()
-        while self.go:
-            # get the spectrum
-            intensities = core.spec.intensities()
-            # average if needed
-            if core.average:
-                num = core.num_average
-                for each in range(num - 1):
-                    intensities += core.spec.intensities()
-                intensities = intensities / num
-            # determine remaining time to collect spectra
-            remaining_time = core.duration - (time.perf_counter() - start_time)
-            # update dictionary values and send the dict signal
-            data_dict['remaining_time'] = remaining_time
-            data_dict['raw_y'] = intensities
-            self.collect_thread_callback_signal.emit(data_dict)
-            # check if it's time to stop
-            if not remaining_time > 0:
-                self.stop()
-        data_dict['remaining_time'] = 0
-        self.collect_thread_callback_signal.emit(data_dict)
-
-    def stop(self):
-        self.go = False
-
-
-class FitThread(qtc.QThread):
-    fit_thread_callback_signal = qtc.pyqtSignal(dict)
-
-    def __init__(self, parent):
-        super(FitThread, self).__init__(parent)
-
-    def run(self):
+    def fit_specs(self):
         fit_dict = {'warning': '', 'popt': ''}
         # start by defining ROI arrays and get max_index for ROI
         full_max_index = np.argmax(core.ys)
@@ -1292,7 +1255,7 @@ class FitThread(qtc.QThread):
             except RuntimeError:
                 warning = 'Poor fit'
         fit_dict['warning'] = warning
-        self.fit_thread_callback_signal.emit(fit_dict)
+        self.fit_returned_signal.emit(fit_dict)
 
 
 def update():
@@ -1311,7 +1274,7 @@ def update():
     # y scaling done, ready to assign new data to curve
     gui.raw_data.setData(core.xs, core.ys)
     if gui.fit_n_spec_btn.isChecked():
-        gui.fit_thread.start()
+        gui.fit_requested_signal.emit(True)
 
 
 def calculate_pressure(lambda_r1):
