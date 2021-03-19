@@ -1240,6 +1240,8 @@ class FitSpecs(qtc.QObject):
         r2_pos = r1_pos - 1.4
         r1_height = float(core.ys_roi[roi_max_index] - (slope * r1_pos + intercept))
         r2_height = r1_height / 2.0
+        local_xs = core.xs_roi
+        local_ys = core.ys_roi
         # check r1_height is within range before fitting
         if r1_height < core.threshold:
             warning = 'Too weak'
@@ -1247,15 +1249,11 @@ class FitSpecs(qtc.QObject):
             warning = 'Saturated'
         else:
             # define fitting parameters p0 (area approximated by height)
-            print('before p0')
             p0 = [r2_height, r2_pos, 0.5, 1.0, r1_height, r1_pos, 0.5, 1.0, slope, intercept]
-            print('after p0')
             try:
-                print('try start')
-                popt, pcov = curve_fit(double_pseudo, core.xs_roi, core.ys_roi, p0=p0)
+                popt, pcov = curve_fit(double_pseudo, local_xs, local_ys, p0=p0)
                 warning = ''
                 fit_dict['popt'] = popt
-                print('try done')
             except RuntimeError:
                 warning = 'Poor fit'
         fit_dict['warning'] = warning
