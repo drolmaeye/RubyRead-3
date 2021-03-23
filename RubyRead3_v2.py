@@ -129,8 +129,9 @@ class MainWindow(qtw.QMainWindow):
         self.threshold_min_input.setSingleStep(100)
         self.threshold_min_input.setMinimumWidth(70)
 
-        self.test_9000_btn = qtw.QPushButton('Zoom Full')
-        self.test_9999_btn = qtw.QPushButton('Zoom Fit')
+        self.zoom_full_btn = qtw.QPushButton('Zoom Full')
+        self.zoom_fit_btn = qtw.QPushButton('Zoom Fit')
+        self.test_9000_lbl = qtw.QLabel('test')
 
         # connect custom toolbar signals
         self.take_one_spec_btn.clicked.connect(self.take_one_spectrum)
@@ -138,8 +139,8 @@ class MainWindow(qtw.QMainWindow):
         self.fit_one_spec_btn.clicked.connect(self.fit_one_spectrum)
         self.fit_n_spec_btn.clicked.connect(self.fit_n_spectra)
         self.threshold_min_input.valueChanged.connect(self.set_threshold)
-        self.test_9000_btn.clicked.connect(self.test_9000)
-        self.test_9999_btn.clicked.connect(self.test_9999)
+        self.zoom_full_btn.clicked.connect(self.zoom_full)
+        self.zoom_fit_btn.clicked.connect(self.zoom_fit)
 
         # add custom toolbar widgets to toolbar layout
         self.tb_layout.addWidget(self.take_spec_label)
@@ -158,8 +159,9 @@ class MainWindow(qtw.QMainWindow):
         self.tb_layout.addWidget(self.threshold_min_input)
         self.tb_layout.addSpacing(20)
 
-        self.tb_layout.addWidget(self.test_9000_btn)
-        self.tb_layout.addWidget(self.test_9999_btn)
+        self.tb_layout.addWidget(self.zoom_full_btn)
+        self.tb_layout.addWidget(self.zoom_fit_btn)
+        # self.tb_layout.addWidget(self.test_9000_lbl)
 
         # add custom toolbar to main window
         self.mw_layout.addWidget(self.tb)
@@ -796,10 +798,10 @@ class MainWindow(qtw.QMainWindow):
     def set_threshold(self):
         core.threshold = self.threshold_min_input.value()
 
-    def test_9000(self):
+    def zoom_full(self):
         vb.autoRange()
 
-    def test_9999(self):
+    def zoom_fit(self):
         vb.zoom_roi()
 
     # class methods for spectrum control
@@ -1097,6 +1099,7 @@ class MainWindow(qtw.QMainWindow):
 class CoreData:
     def __init__(self):
         # get spectrometer going
+        # list of approved spectrometers
         spec_list = ['HR+C0308',
                      'HR+C0996',
                      'HR+D1333',
@@ -1107,21 +1110,78 @@ class CoreData:
                      'HR+D2121',
                      'HR+C1923',
                      'HR+D0677']
-        self.devices = sb.list_devices()
-        self.spec = sb.Spectrometer(self.devices[0])
+        # look for and select among available spectrometers
+        index = -1
+        retries = 0
+        while index == -1:
+            devices = sb.list_devices()
+            num_devices = len(devices)
+            if num_devices == 1:
+                index = 0
+            elif num_devices == 0:
+                # Important to make the number of retry checks here
+                if retries > 2:
+                    qtw.QMessageBox.warning(None,
+                                            'Too many retries',
+                                            'Too many retries, program will quit')
+                    sys.exit()
+                msgbox = qtw.QMessageBox()
+                msgbox.setWindowTitle('No Spectrometers Available')
+                msgbox.setText('Please connect a spectrometer.\n'
+                               'If spectrometer is already connected, please make sure it is not already in use.\n'
+                               'Troubleshoot: try reconnecting USB cable to spectrometer.')
+                msgbox.addButton(qtw.QMessageBox.Retry)
+                msgbox.addButton(qtw.QMessageBox.Abort)
+                msgbox.addButton(qtw.QMessageBox.Ignore)
+                choice = msgbox.exec_()
+                if choice == qtw.QMessageBox.Retry:
+                    retries += 1
+                elif choice == qtw.QMessageBox.Ignore:
+                    qtw.QMessageBox.information(None,
+                                                'No spectrometer',
+                                                'No spectrometer found, entering data viewing mode (future).\n'
+                                                'Exiting program (temporary until data-only implemented).')
+                    sys.exit()
+                elif choice == qtw.QMessageBox.Abort:
+                    sys.exit()
+            elif num_devices == 2:
+                msgbox = qtw.QMessageBox()
+                msgbox.setWindowTitle('Multiple Spectrometers')
+                msgbox.setText('Two spectrometers found.\n'
+                               'Please select between the spectrometers below:')
+                msgbox.addButton(str(devices[0]), qtw.QMessageBox.YesRole)
+                msgbox.addButton(str(devices[1]), qtw.QMessageBox.NoRole)
+                choice = msgbox.exec_()
+                index = choice
+            else:
+                # refuse 3+ spectrometers
+                msgbox = qtw.QMessageBox.warning(None,
+                                                 'Too many spectrometers',
+                                                 'Please limit number of spectrometers and run program again.')
+                sys.exit()
+        # initialize spectrometer and check serial number is valid
+        self.spec = sb.Spectrometer(devices[index])
         if self.spec.serial_number not in spec_list:
-            widget = qtw.QWidget()
-            msg = qtw.QMessageBox.warning(widget, 'Spectrometer not recognized', 'The serial number of your spectrometer is not recognized.\nContact HPCAT staff to add your spectrometer to the list of approved devices.')
+            msg = qtw.QMessageBox.warning(None,
+                                          'Spectrometer not recognized',
+                                          'The serial number of your spectrometer is not recognized.\n'
+                                          'Contact HPCAT staff to add your spectrometer to the list of approved devices.')
             sys.exit()
+        # set default integration time of 100 ms
         self.spec.integration_time_micros(100000)
 
-        # initial real and dummy spectra
+        # establish initial spectrum
         self.xs = self.spec.wavelengths()
         self.ys = self.spec.intensities()
 
-        # initial fit boundaries
+        # define initial fit boundaries
         self.roi_min = 150
         self.roi_max = 150
+
+        # TODO: send below parameters to fitting as needed
+        # define plot and fit limits from hardware specifications
+        self.max_intensity = self.spec.max_intensity
+        self.num_pixels = self.spec.pixels
 
         # set initial roi arrays
         default_zoom = np.abs(self.xs-694.260).argmin()
@@ -1227,7 +1287,7 @@ class FitSpecs(qtc.QObject):
         # handle edge situations (for example, during background-only spectra)
         if roi_min < 0:
             roi_min = 0
-        if roi_max > 2047:
+        if roi_max > core.num_pixels - 1:
             roi_max = -1
         core.xs_roi = core.xs[roi_min:roi_max]
         core.ys_roi = core.ys[roi_min:roi_max]
@@ -1245,7 +1305,7 @@ class FitSpecs(qtc.QObject):
         # check r1_height is within range before fitting
         if r1_height < core.threshold:
             warning = 'Too weak'
-        elif core.ys_roi[roi_max_index] > 16000:
+        elif core.ys_roi[roi_max_index] > core.max_intensity - 1:
             warning = 'Saturated'
         else:
             # define fitting parameters p0 (area approximated by height)
