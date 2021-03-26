@@ -16,6 +16,16 @@ def double_pseudo(x, a1, c1, eta1, w1, a2, c2, eta2, w2, m, bg):
            m * x + bg
 
 
+def double_moffat(x, a1, c1, w1, b1, a2, c2, w2, b2, m, bg):
+    return a1*((((x - c1)/w1)**2 + 1)**-b1) + \
+           a2*((((x - c2)/w2)**2 + 1)**-b2) + \
+           m*x + bg
+
+
+def moffat(x, a, c, w, b, m, bg):
+    return a*((((x - c)/w)**2 + 1)**-b) + m*x + bg
+
+
 # generate x, y data
 name = 'full_spectrum.txt'
 xs, ys = np.genfromtxt(name,
@@ -39,8 +49,8 @@ xs_roi = xs[roi_min:roi_max]
 ys_roi = ys[roi_min:roi_max]
 roi_max_index = np.argmax(ys_roi)
 # start with approximate linear background (using full spectrum)
-slope = (ys[-1] - ys[0]) / (xs[-1] - xs[0])
-intercept = ys[0] - slope * xs[0]
+slope = (ys_roi[-1] - ys_roi[0]) / (xs_roi[-1] - xs_roi[0])
+intercept = ys_roi[0] - slope * xs_roi[0]
 # obtain initial guesses for fitting parameters using ROI array
 r1_pos = xs_roi[roi_max_index]
 r2_pos = r1_pos - 1.4
@@ -56,66 +66,79 @@ try:
 except RuntimeError:
     print('Poor fit')
 curve_roi_duration = time.perf_counter() - curve_roi_start
-print('curve and roi:', curve_roi_duration)
+print('double pseudo curve and roi:', curve_roi_duration, popt[5])
 
 # define fitting parameters p0 (area approximated by height)
-p0 = [r2_height, r2_pos, 0.5, 1.0, r1_height, r1_pos, 0.5, 1.0, slope, intercept]
-curve_full_start = time.perf_counter()
+#   p0 = [r2_height, r2_pos, 0.5, 1.0, r1_height, r1_pos, 0.5, 1.0, slope, intercept]
+#   curve_full_start = time.perf_counter()
+#   try:
+#       poptf, pcovf = curve_fit(double_pseudo, xs, ys, p0=p0)
+#   except RuntimeError:
+#       print('Poor fit')
+#   curve_full_duration = time.perf_counter() - curve_full_start
+#   print('curve and full:', curve_full_duration)
+
+# ###r1 = PseudoVoigtModel(prefix='r1_')
+# ###r2 = PseudoVoigtModel(prefix='r2_')
+# ###bg = LinearModel()
+# ###
+# ###params = r1.make_params()
+# ###params.update(r2.make_params())
+# ###params.update(bg.make_params())
+# ###ruby_model = r1 + r2 + bg
+# ###
+# ###
+# ###
+# ###params['r1_amplitude'].value = r1_height
+# ###params['r1_center'].value = r1_pos
+# ###params['r1_sigma'].value = 1.0
+# ###params['r1_fraction'].value = 0.5
+# ###params['r2_amplitude'].value = r2_height
+# ###params['r2_center'].value = r2_pos
+# ###params['r2_sigma'].value = 1.0
+# ###params['r2_fraction'].value = 0.5
+# ###params['slope'].value = slope
+# ###params['intercept'].value = intercept
+# ###
+# ###lmfit_roi_start = time.perf_counter()
+# ###out = ruby_model.fit(ys_roi, params=params, x=xs_roi)
+# ###lmfit_roi_duration = time.perf_counter() - lmfit_roi_start
+# ###print('lmfit and roi:', lmfit_roi_duration)
+# #### print(out.fit_report())
+# ###
+# ###lmfit_full_start = time.perf_counter()
+# ###outf = ruby_model.fit(ys, params=params, x=xs)
+# ###lmfit_full_duration = time.perf_counter() - lmfit_full_start
+# ###print('lmfit and full:', lmfit_full_duration)
+# ###
+# ###params['r1_amplitude'].value = 1262.0
+# ###params['r1_center'].value = 700.2
+# ###params['r1_sigma'].value = 0.46
+# ###params['r1_fraction'].value = 0.58
+# ###params['r2_amplitude'].value = 539
+# ###params['r2_center'].value = 698.8
+# ###params['r2_sigma'].value = 0.42
+# ###params['r2_fraction'].value = 0.14
+# ###params['slope'].value = -3.75
+# ###params['intercept'].value = 3432.0
+# ###
+# ###lmfit_cheat_start = time.perf_counter()
+# ###outcheat = ruby_model.fit(ys_roi, params=params, x=xs_roi)
+# ###lmfit_cheat_duration = time.perf_counter() - lmfit_cheat_start
+# ###print('lmfit and cheat:', lmfit_cheat_duration)
+
+m0 = [r2_height, r2_pos, 0.5, 1.0, r1_height, r1_pos, 0.5, 1.0, slope, intercept]
+moffat_roi_start = time.perf_counter()
+# ###for each in range(len(p0)):
+# ###    p0[each] = float(p0[each])
+# ###    print(type(p0[each]))
 try:
-    poptf, pcovf = curve_fit(double_pseudo, xs, ys, p0=p0)
+    mopt, mcov = curve_fit(double_moffat, xs_roi, ys_roi, p0=m0)
 except RuntimeError:
     print('Poor fit')
-curve_full_duration = time.perf_counter() - curve_full_start
-print('curve and full:', curve_full_duration)
-
-r1 = PseudoVoigtModel(prefix='r1_')
-r2 = PseudoVoigtModel(prefix='r2_')
-bg = LinearModel()
-
-params = r1.make_params()
-params.update(r2.make_params())
-params.update(bg.make_params())
-ruby_model = r1 + r2 + bg
-
-
-
-params['r1_amplitude'].value = r1_height
-params['r1_center'].value = r1_pos
-params['r1_sigma'].value = 1.0
-params['r1_fraction'].value = 0.5
-params['r2_amplitude'].value = r2_height
-params['r2_center'].value = r2_pos
-params['r2_sigma'].value = 1.0
-params['r2_fraction'].value = 0.5
-params['slope'].value = slope
-params['intercept'].value = intercept
-
-lmfit_roi_start = time.perf_counter()
-out = ruby_model.fit(ys_roi, params=params, x=xs_roi)
-lmfit_roi_duration = time.perf_counter() - lmfit_roi_start
-print('lmfit and roi:', lmfit_roi_duration)
-# print(out.fit_report())
-
-lmfit_full_start = time.perf_counter()
-outf = ruby_model.fit(ys, params=params, x=xs)
-lmfit_full_duration = time.perf_counter() - lmfit_full_start
-print('lmfit and full:', lmfit_full_duration)
-
-params['r1_amplitude'].value = 1262.0
-params['r1_center'].value = 700.2
-params['r1_sigma'].value = 0.46
-params['r1_fraction'].value = 0.58
-params['r2_amplitude'].value = 539
-params['r2_center'].value = 698.8
-params['r2_sigma'].value = 0.42
-params['r2_fraction'].value = 0.14
-params['slope'].value = -3.75
-params['intercept'].value = 3432.0
-
-lmfit_cheat_start = time.perf_counter()
-outcheat = ruby_model.fit(ys_roi, params=params, x=xs_roi)
-lmfit_cheat_duration = time.perf_counter() - lmfit_cheat_start
-print('lmfit and cheat:', lmfit_cheat_duration)
+moffat_roi_duration = time.perf_counter() - moffat_roi_start
+print('moffat curve and roi:', moffat_roi_duration, mopt[5])
+print(mopt)
 
 
 
@@ -125,9 +148,11 @@ print('lmfit and cheat:', lmfit_cheat_duration)
 
 
 
-# ###plotwidget = pg.plot()
-# ###plotwidget.plot(xs, ys)
-# ###plotwidget.plot(xs_roi, out.best_fit, pen='y')
-# #### plotwidget.plot(xs_roi, double_pseudo(xs_roi, *popt), pen='r')
-# ###
-# ###pg.QtGui.QApplication.exec_()
+plotwidget = pg.plot()
+plotwidget.plot(xs, ys)
+plotwidget.plot(xs_roi, double_moffat(xs_roi, *mopt), pen='r')
+plotwidget.plot(xs_roi, double_pseudo(xs_roi, *popt), pen='b')
+plotwidget.plot(xs_roi, moffat(xs_roi, mopt[0], mopt[1], mopt[2], mopt[3], mopt[8], mopt[9]), pen='g')
+plotwidget.plot(xs_roi, moffat(xs_roi, mopt[4], mopt[5], mopt[6], mopt[7], mopt[8], mopt[9]), pen='g')
+
+pg.QtGui.QApplication.exec_()

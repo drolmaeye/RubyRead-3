@@ -35,6 +35,9 @@ class MainWindow(qtw.QMainWindow):
         self.setWindowTitle('RubyRead Python3 Development Version')
         self.setWindowIcon(qtg.QIcon('ruby4.png'))
 
+        # test a blank object to use for click-to-edit
+        self.had_focus = None
+
         # create the main window widget and make it central
         self.mw = qtw.QWidget()
         self.setCentralWidget(self.mw)
@@ -506,6 +509,7 @@ class MainWindow(qtw.QMainWindow):
         # make pressure calibration tab
         self.p_calibration_tab = qtw.QWidget()
         self.p_calibration_tab_layout = qtw.QVBoxLayout()
+        self.p_calibration_tab_layout.setAlignment(qtc.Qt.AlignTop)
         self.p_calibration_tab.setLayout(self.p_calibration_tab_layout)
 
         # make Group Box for lambda naught
@@ -573,6 +577,59 @@ class MainWindow(qtw.QMainWindow):
 
         self.ow.addTab(self.p_calibration_tab, 'P Calibration')
 
+        # ###WAVELENGTH CALIBRATION###
+        # make wavelength calibration tab
+        self.w_calibraiton_tab = qtw.QWidget()
+        self.w_calibration_tab_layout = qtw.QVBoxLayout()
+        self.w_calibration_tab_layout.setAlignment(qtc.Qt.AlignTop)
+        self.w_calibraiton_tab.setLayout(self.w_calibration_tab_layout)
+
+        # make calibration line entry widgets
+        self.use_label = qtw.QLabel('Use')
+        self.pixel_input_label = qtw.QLabel('Pixel (guess)')
+        self.pixel_fit_label = qtw.QLabel('Pixel (fit)')
+        self.wave_fit_label = qtw.QLabel('Fit (nm)')
+        self.wave_expected_label = qtw.QLabel('Ref (nm)')
+        self.wave_error_label = qtw.QLabel('Error')
+        self.cal1 = CalibrationEntry()
+        self.cal2 = CalibrationEntry()
+        self.cal3 = CalibrationEntry()
+        self.cal4 = CalibrationEntry()
+        self.cal5 = CalibrationEntry()
+        self.cal6 = CalibrationEntry()
+        self.cal7 = CalibrationEntry()
+        self.cal8 = CalibrationEntry()
+        self.cal9 = CalibrationEntry()
+        self.cal_btn = qtw.QPushButton('Calibrate')
+
+        # connect signals for wavelength calibration
+        self.cal_btn.clicked.connect(self.calibrate_spectrometer)
+
+
+        # add wavelength calibration widgets to layout
+        self.w_calibration_heading_layout = qtw.QHBoxLayout()
+        self.w_calibration_heading_layout.addWidget(self.use_label)
+        self.w_calibration_heading_layout.addWidget(self.pixel_input_label)
+        self.w_calibration_heading_layout.addWidget(self.pixel_fit_label)
+        self.w_calibration_heading_layout.addWidget(self.wave_fit_label)
+        self.w_calibration_heading_layout.addWidget(self.wave_expected_label)
+        self.w_calibration_heading_layout.addWidget(self.wave_error_label)
+        self.w_calibration_tab_layout.addLayout(self.w_calibration_heading_layout)
+        self.w_calibration_tab_layout.addWidget(self.cal1)
+        self.w_calibration_tab_layout.addWidget(self.cal2)
+        self.w_calibration_tab_layout.addWidget(self.cal3)
+        self.w_calibration_tab_layout.addWidget(self.cal4)
+        self.w_calibration_tab_layout.addWidget(self.cal5)
+        self.w_calibration_tab_layout.addWidget(self.cal6)
+        self.w_calibration_tab_layout.addWidget(self.cal7)
+        self.w_calibration_tab_layout.addWidget(self.cal8)
+        self.w_calibration_tab_layout.addWidget(self.cal9)
+        self.w_calibration_tab_layout.addWidget(self.cal_btn)
+
+        self.ow.addTab(self.w_calibraiton_tab, 'W Calibration')
+
+
+
         # ###DURATION TAB###
         # Main widget and layout
         self.focus_time_tab = qtw.QWidget()
@@ -599,15 +656,15 @@ class MainWindow(qtw.QMainWindow):
         # add tab to tab widget
         self.ow.addTab(self.focus_time_tab, 'Focusing')
 
-        # ###Fitting tab###
+        # ###FITTING TAB###
         # Main widget and layout
-        self.fitting_roi_tab = qtw.QWidget()
-        self.fitting_roi_tab_layout = qtw.QVBoxLayout()
-        self.fitting_roi_tab_layout.setAlignment(qtc.Qt.AlignTop)
-        self.fitting_roi_tab.setLayout(self.fitting_roi_tab_layout)
+        self.fitting_tab = qtw.QWidget()
+        self.fitting_tab_layout = qtw.QVBoxLayout()
+        self.fitting_tab_layout.setAlignment(qtc.Qt.AlignTop)
+        self.fitting_tab.setLayout(self.fitting_tab_layout)
 
-        # make widgets
-        self.fitting_roi_label = qtw.QLabel('Set roi extrema for fitting (delta pixels)')
+        ### roi selection ###
+        # make widgets for roi selection
         self.fit_roi_min_label = qtw.QLabel('ROI minimum')
         self.fit_roi_min_sbox = qtw.QSpinBox()
         self.fit_roi_min_sbox.setRange(10, 500)
@@ -619,21 +676,78 @@ class MainWindow(qtw.QMainWindow):
         self.fit_roi_max_sbox.setValue(150)
         self.fit_roi_max_sbox.setSingleStep(10)
 
-        # conect signals
+        # connect signals for roi selection
         self.fit_roi_min_sbox.valueChanged.connect(lambda value: self.set_roi_range('min', value))
         self.fit_roi_max_sbox.valueChanged.connect(lambda value: self.set_roi_range('max', value))
 
-        # add widgets to layout
-        self.fitting_roi_tab_layout.addWidget(self.fitting_roi_label)
+        # add roi selection widgets to fitting tab
+        self.roi_selection_gb = qtw.QGroupBox('ROI extrema for fitting (delta pixels)')
+        self.fitting_tab_layout.addWidget(self.roi_selection_gb)
+        self.roi_selection_gb_layout = qtw.QHBoxLayout()
+        self.roi_selection_gb.setLayout(self.roi_selection_gb_layout)
+        self.roi_selection_gb_layout.addWidget(self.fit_roi_min_label)
+        self.roi_selection_gb_layout.addWidget(self.fit_roi_min_sbox)
+        self.roi_selection_gb_layout.addWidget(self.fit_roi_max_label)
+        self.roi_selection_gb_layout.addWidget(self.fit_roi_max_sbox)
+        self.fitting_tab_layout.addSpacing(10)
 
-        self.pixel_select_layout = qtw.QHBoxLayout()
-        self.pixel_select_layout.addWidget(self.fit_roi_min_label)
-        self.pixel_select_layout.addWidget(self.fit_roi_min_sbox)
-        self.pixel_select_layout.addWidget(self.fit_roi_max_label)
-        self.pixel_select_layout.addWidget(self.fit_roi_max_sbox)
-        self.fitting_roi_tab_layout.addLayout(self.pixel_select_layout)
+        ### user-defined r1 ###
+        # make user-defined r1 widgets
+        self.manual_r1_label = qtw.QLabel('R1 guess')
+        self.manual_r1_input = MouseLineEdit('694.260')
+        self.manual_r1_input.setValidator(qtg.QDoubleValidator(680.000, 760.000, 3))
+        self.manual_r1_cbox = qtw.QCheckBox('Use R1 guess')
 
-        self.ow.addTab(self.fitting_roi_tab, 'Fitting')
+        # connect user-defined r1 signals
+
+        # add user-defined r1 widgets to fitting tab
+        self.user_defined_r1_gb = qtw.QGroupBox('User-defined R1 (wavelength)')
+        self.fitting_tab_layout.addWidget(self.user_defined_r1_gb)
+        self.user_defined_r1_gb_layout = qtw.QHBoxLayout()
+        self.user_defined_r1_gb.setLayout(self.user_defined_r1_gb_layout)
+        self.user_defined_r1_gb_layout.addWidget(self.manual_r1_label)
+        self.user_defined_r1_gb_layout.addWidget(self.manual_r1_input)
+        self.user_defined_r1_gb_layout.addWidget(self.manual_r1_cbox)
+        self.fitting_tab_layout.addSpacing(10)
+
+        ### background subtraction ###
+        # make background subtraction widgets
+        self.fetch_bg_btn = qtw.QPushButton('Grab current spectrum')
+        self.subtract_bg_cbox = qtw.QCheckBox('Subtract background')
+
+        # connect background subtraction signals
+
+        # add background subtraction widgets to fitting tab
+        self.background_subtraction_gb = qtw.QGroupBox('Background subtraction')
+        self.fitting_tab_layout.addWidget(self.background_subtraction_gb)
+        self.background_subtraction_gb_layout = qtw.QHBoxLayout()
+        self.background_subtraction_gb.setLayout(self.background_subtraction_gb_layout)
+        self.background_subtraction_gb_layout.addWidget(self.fetch_bg_btn)
+        self.background_subtraction_gb_layout.addWidget(self.subtract_bg_cbox)
+        self.fitting_tab_layout.addSpacing(10)
+
+        ### fitting model ###
+        # make fitting model widgets
+        self.fit_moffat_btn = qtw.QPushButton('Moffat')
+        self.fit_pseudovoigt_btn = qtw.QPushButton('Pseudo-Voigt')
+        self.fit_moffat_btn.setCheckable(True)
+        self.fit_pseudovoigt_btn.setCheckable(True)
+        self.fit_moffat_btn.setChecked(True)
+        self.fit_model_btn_group = qtw.QButtonGroup()
+        self.fit_model_btn_group.addButton(self.fit_moffat_btn, 0)
+        self.fit_model_btn_group.addButton(self.fit_pseudovoigt_btn, 1)
+
+        # connect fitting model signals
+
+        # add fitting model widgets to fitting tab
+        self.fitting_model_gb = qtw.QGroupBox('Select fitting model')
+        self.fitting_tab_layout.addWidget(self.fitting_model_gb)
+        self.fitting_model_gb_layout = qtw.QHBoxLayout()
+        self.fitting_model_gb.setLayout(self.fitting_model_gb_layout)
+        self.fitting_model_gb_layout.addWidget(self.fit_moffat_btn)
+        self.fitting_model_gb_layout.addWidget(self.fit_pseudovoigt_btn)
+
+        self.ow.addTab(self.fitting_tab, 'Fitting')
 
         # ###EPICS tab###
         # make EPICS tab
@@ -997,6 +1111,38 @@ class MainWindow(qtw.QMainWindow):
     def set_duration(self, value):
         core.duration = value*60
 
+    # class methods for w calibration tab
+    def calibrate_spectrometer(self):
+        ###START HERE###
+        cal_pixels = []
+        cal_wavelengths = []
+        all_peaks = [self.cal1,
+                     self.cal2,
+                     self.cal3,
+                     self.cal4,
+                     self.cal5,
+                     self.cal6,
+                     self.cal7,
+                     self.cal8,
+                     self.cal9]
+        for each in all_peaks:
+            if each.cbox.isChecked():
+                cal_pixels.append(float(each.pixel_fit.text()))
+                cal_wavelengths.append(float(each.wave_guess.text()))
+        print(cal_pixels, cal_wavelengths)
+        pixel_array = np.array(cal_pixels)
+        wavelength_array = np.array(cal_wavelengths)
+        a = np.polyfit(pixel_array, wavelength_array, 3)
+        print(a)
+        f = lambda x: a[0]*x**3 + a[1]*x**2 + a[2]*x + a[3]
+        new_xs = f(np.arange(0, 2048))
+        print(new_xs[0], new_xs[-1], new_xs.size)
+        pwid = pg.plot()
+        pwid.plot(core.xs)
+        pwid.plot(new_xs, pen='r')
+        core.xs = new_xs
+
+
     # class methods for fitting roi tab
     def set_roi_range(self, end, value):
         if end == 'min':
@@ -1218,6 +1364,21 @@ class CustomViewBox(pg.ViewBox):
     def mouseClickEvent(self, ev):
         if ev.button() == qtc.Qt.RightButton:
             self.zoom_roi()
+        if ev.button() == qtc.Qt.LeftButton:
+            if gui.had_focus:
+                pos = ev.pos()
+                data = self.mapToView(pos)
+                wavelength = data.x()
+                index = np.abs(core.xs - wavelength).argmin()
+                if gui.had_focus.parentWidget() == gui.user_defined_r1_gb:
+                    gui.had_focus.setText('%.3f' % wavelength)
+                else:
+                    # widget is part of wavelength calibration
+                    gui.had_focus.setText(str(index))
+                gui.had_focus = None
+
+
+
 
     def mouseDoubleClickEvent(self, ev):
         if ev.button() == qtc.Qt.LeftButton:
@@ -1232,6 +1393,91 @@ class CustomViewBox(pg.ViewBox):
     def zoom_roi(self):
         self.setXRange(core.xs_roi[0], core.xs_roi[-1])
         self.setYRange(core.ys_roi.min(), core.ys_roi.max())
+
+
+class MouseLineEdit(qtw.QLineEdit):
+
+    def focusOutEvent(self, event):
+        gui.had_focus = self
+        super(MouseLineEdit, self).focusOutEvent(event)
+
+
+class CalibrationEntry(qtw.QWidget):
+
+    def __init__(self):
+        super().__init__()
+
+        self.cbox = qtw.QCheckBox()
+        # self.cbox.setFixedWidth(5)
+        self.pixel_input = MouseLineEdit()
+        self.pixel_input.setFixedWidth(60)
+        self.pixel_fit = qtw.QLineEdit()
+        self.pixel_fit.setFixedWidth(60)
+        self.wave_fit = qtw.QLineEdit()
+        self.wave_fit.setFixedWidth(60)
+        self.wave_guess = qtw.QLineEdit()
+        self.wave_guess.setFixedWidth(60)
+        self.wave_error = qtw.QLineEdit()
+        self.wave_error.setFixedWidth(60)
+
+        # connect signals
+        self.pixel_input.textChanged.connect(lambda text: self.fit_and_fill(text))
+
+        self.cal_entry_line_layout = qtw.QHBoxLayout()
+        self.setLayout(self.cal_entry_line_layout)
+
+        self.cal_entry_line_layout.addWidget(self.cbox)
+        self.cal_entry_line_layout.addWidget(self.pixel_input)
+        self.cal_entry_line_layout.addWidget(self.pixel_fit)
+        self.cal_entry_line_layout.addWidget(self.wave_fit)
+        self.cal_entry_line_layout.addWidget(self.wave_guess)
+        self.cal_entry_line_layout.addWidget(self.wave_error)
+
+    def fit_and_fill(self, text):
+        # gather info around user-selected point and create local arrays
+        calibration_lines = np.array([671.704, 692.947, 703.241, 724.517, 750.387, 763.511])
+        user_guess = int(text)
+        fit_width = 20
+        guess_max_index = np.argmax(core.ys[user_guess - fit_width:user_guess + fit_width])
+        global_max_index = user_guess - fit_width + guess_max_index
+        roi_min = global_max_index - fit_width
+        roi_max = global_max_index + fit_width
+        local_ys = core.ys[roi_min:roi_max]
+        local_xs = core.xs[roi_min:roi_max]
+        local_pixels = np.arange(roi_min, roi_max)
+        print(user_guess, guess_max_index, global_max_index)
+        # generate the initial parameters for peak fitting vs. pixel
+        height = np.amax(local_ys) - np.amin(local_ys)
+        position_pixels = global_max_index
+        slope_pixels = (local_ys[-1] - local_ys[0]) / (local_pixels[-1] - local_pixels[0])
+        intercept_pixels = local_ys[0] - slope_pixels*local_pixels[0]
+        p0 = [height, position_pixels, 0.5, 1.0, slope_pixels, intercept_pixels]
+        print(height, position_pixels, slope_pixels, intercept_pixels)
+        # generate the initial parameters for peak fitting vs. wavelength
+        position = core.xs[global_max_index]
+        slope = (local_ys[-1] - local_ys[0]) / (local_xs[-1] - local_xs[0])
+        intercept = local_ys[0] - slope*local_xs[0]
+        w0 = [height, position, 0.5, 1.0, slope, intercept]
+        print(height, position, slope, intercept)
+        # fit peaks against pixels
+        popt, _ = curve_fit(pseudo, local_pixels, local_ys, p0)
+        print(popt)
+        self.pixel_fit.setText('%.3f' % popt[1])
+        # fit curve against wavelength
+        wopt, _ = curve_fit(pseudo, local_xs, local_ys, w0)
+        print(wopt)
+        self.wave_fit.setText('%.3f' % wopt[1])
+        wave_cal = calibration_lines[np.abs(calibration_lines - wopt[1]).argmin()]
+        self.wave_guess.setText('%.3f' % wave_cal)
+        delta_wavelength = wopt[1] - wave_cal
+        self.wave_error.setText('%.3f' % delta_wavelength)
+        if delta_wavelength < 1.0:
+            self.cbox.setChecked(True)
+
+
+
+
+
 
 
 class CollectSpecs(qtc.QObject):
@@ -1293,12 +1539,12 @@ class FitSpecs(qtc.QObject):
         core.ys_roi = core.ys[roi_min:roi_max]
         roi_max_index = np.argmax(core.ys_roi)
         # start with approximate linear background (using full spectrum)
-        slope = float((core.ys[-1] - core.ys[0]) / (core.xs[-1] - core.xs[0]))
-        intercept = float(core.ys[0] - slope * core.xs[0])
+        slope = (core.ys[-1] - core.ys[0]) / (core.xs[-1] - core.xs[0])
+        intercept = core.ys[0] - slope * core.xs[0]
         # obtain initial guesses for fitting parameters using ROI array
-        r1_pos = float(core.xs_roi[roi_max_index])
+        r1_pos = core.xs_roi[roi_max_index]
         r2_pos = r1_pos - 1.4
-        r1_height = float(core.ys_roi[roi_max_index] - (slope * r1_pos + intercept))
+        r1_height = core.ys_roi[roi_max_index] - (slope * r1_pos + intercept)
         r2_height = r1_height / 2.0
         local_xs = core.xs_roi
         local_ys = core.ys_roi
@@ -1359,6 +1605,16 @@ def pseudo(x, a, c, eta, w, m, bg):
     return a * (eta * (2 / pi) * (w / (4 * (x - c) ** 2 + w ** 2)) +
                 (1 - eta) * (sqrt(4 * np.log(2)) / (sqrt(pi) * w)) * np.exp(
                 -(4 * np.log(2) / w ** 2) * (x - c) ** 2)) + m * x + bg
+
+
+def double_moffat(x, a1, c1, w1, b1, a2, c2, w2, b2, m, bg):
+    return a1*((((x - c1)/w1)**2 + 1)**-b1) + \
+           a2*((((x - c2)/w2)**2 + 1)**-b2) + \
+           m*x + bg
+
+
+def moffat(x, a, c, w, b, m, bg):
+    return a*((((x - c)/w)**2 + 1)**-b) + m*x + bg
 
 
 def recall_lambda_naught():
