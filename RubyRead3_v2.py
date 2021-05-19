@@ -1255,7 +1255,9 @@ class CoreData:
                      'HR+C1514',
                      'HR+D2121',
                      'HR+C1923',
-                     'HR+D0677']
+                     'HR+D0677',
+                     'FLMS18881',
+                     'FLMT06374']
         # look for and select among available spectrometers
         index = -1
         retries = 0
